@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pro Chat App</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+/* --- Body Gradient + Particles --- */
+body {
+    margin: 0; font-family:'Inter',sans-serif; height:100vh;
+    display:flex; justify-content:center; align-items:center;
+    background: linear-gradient(45deg, #FF9A9E, #FAD0C4, #A1C4FD, #C2E9FB);
+    background-size: 400% 400%; animation: gradientBG 15s ease infinite;
+    overflow: hidden;
+}
+@keyframes gradientBG {0%{background-position:0%50%}25%{background-position:50%50%}50%{background-position:100%50%}75%{background-position:50%50%}100%{background-position:0%50%}}
+#particles{position:absolute;width:100%;height:100%;top:0;left:0;pointer-events:none}
+.particle{position:absolute;border-radius:50%;opacity:0.5;background:rgba(255,255,255,0.4);animation: floatParticle linear infinite}
+@keyframes floatParticle{0%{transform:translateY(0) translateX(0);opacity:0.5}50%{opacity:1}100%{transform:translateY(-1000px) translateX(50px);opacity:0}}
+
+/* --- Chat Container --- */
+.chat-container{width:500px;height:700px;background:rgba(255,255,255,0.05);backdrop-filter:blur(20px);border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 15px 50px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);position:relative;}
+
+/* --- Header + Theme Toggle --- */
+.header{display:flex;justify-content:space-between;align-items:center;padding:15px;color:#fff;font-size:28px;font-weight:700;background:rgba(0,0,0,0.2)}
+#themeToggle{cursor:pointer;font-size:22px;background:transparent;border:none;color:#fff}
+
+/* --- Chat Body --- */
+.chat-body{flex:1;display:flex;flex-direction:column;padding:10px;overflow:hidden}
+.messages{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.bubble{max-width:75%;padding:12px 16px;border-radius:20px;font-size:14px;line-height:1.3;display:flex;align-items:center}
+.sent{background:linear-gradient(135deg,#00c6ff,#0072ff);align-self:flex-end;color:#fff;border-bottom-right-radius:4px}
+.received{background:linear-gradient(135deg,#ff758c,#ff7eb3);align-self:flex-start;color:#fff;border-bottom-left-radius:4px}
+.notification{align-self:center;background: rgba(255,255,255,0.2);color:#fff;font-style:italic;padding:6px 10px;border-radius:12px}
+.username{font-weight:700;color:#ffe600}
+.reactions{margin-left:5px;font-size:14px;cursor:pointer}
+
+/* --- Typing Indicator --- */
+.typing{font-size:12px;font-style:italic;color:#ffe600;margin-left:10px}
+
+/* --- Input Area --- */
+.input-area{display:flex;gap:10px;padding:12px;background:rgba(0,0,0,0.2);position:relative}
+#message{flex:1;padding:12px;border-radius:12px;border:none;outline:none;font-size:14px;background:rgba(255,255,255,0.1);color:#fff}
+#sendBtn{padding:12px 18px;border:none;border-radius:12px;background:#00c6ff;color:#000;font-weight:600;cursor:pointer;transition:0.2s}
+#sendBtn:hover{background:#0072ff;transform:scale(1.05)}
+#emojiBtn{font-size:22px;background:transparent;border:none;cursor:pointer;color:#fff}
+#emojiPicker{position:absolute;bottom:60px;left:12px;background:rgba(0,0,0,0.85);border-radius:12px;padding:10px;display:none;flex-wrap:wrap;gap:8px;max-width:250px;max-height:180px;overflow-y:auto}
+#emojiPicker span{cursor:pointer;font-size:22px;padding:4px;border-radius:6px;transition:0.2s}
+#emojiPicker span:hover{background: rgba(255,255,255,0.2)}
+#scrollBtn{position:fixed;bottom:80px;right:20px;display:none;background:#00c6ff;border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:20px}
+
+/* --- Dark Mode --- */
+body.dark{background:linear-gradient(45deg,#6a11cb,#2575fc,#ff758c,#ffb347)}
+body.light{background:linear-gradient(45deg,#FF9A9E,#FAD0C4,#A1C4FD,#C2E9FB)}
+</style>
+</head>
+<body class="dark">
+
+<div id="particles"></div>
+
+<div class="chat-container">
+    <div class="header">
+        <span>💬 Pro Chat</span>
+        <button id="themeToggle">🌙</button>
+    </div>
+    <div class="chat-body">
+        <div class="messages" id="messages"></div>
+        <div class="typing" id="typing"></div>
+        <div class="online-users" id="users"></div>
+    </div>
+    <div class="input-area">
+        <button id="emojiBtn">😊</button>
+        <input type="text" id="message" placeholder="Type a message..."/>
+        <button id="sendBtn">Send</button>
+        <div id="emojiPicker"></div>
+    </div>
+</div>
+
+<button id="scrollBtn">↓</button>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket=io();
+const username=prompt("Enter your name:");
+socket.emit("new-user",username);
+
+// Elements
+const messagesDiv=document.getElementById("messages");
+const usersDiv=document.getElementById("users");
+const typingDiv=document.getElementById("typing");
+const messageInput=document.getElementById("message");
+const sendBtn=document.getElementById("sendBtn");
+const emojiBtn=document.getElementById("emojiBtn");
+const emojiPicker=document.getElementById("emojiPicker");
+const scrollBtn=document.getElementById("scrollBtn");
+const themeToggle=document.getElementById("themeToggle");
+
+// Particles
+const particleCount=25;
+const particlesContainer=document.getElementById("particles");
+for(let i=0;i<particleCount;i++){
+    const p=document.createElement("div");p.classList.add("particle");
+    const size=Math.random()*15+5;p.style.width=p.style.height=`${size}px`;
+    p.style.left=`${Math.random()*100}%`;p.style.top=`${Math.random()*100}%`;
+    p.style.animationDuration=`${Math.random()*20+10}s`;
+    particlesContainer.appendChild(p);
+}
+
+// Theme toggle
+themeToggle.addEventListener("click",()=>{
+    document.body.classList.toggle("dark");
+    document.body.classList.toggle("light");
+});
+
+// Emoji picker
+const emojis=["😀","😂","😍","😊","😎","😢","👍","🙏","🔥","💯","🎉","🥳","🤔","🥰","🤩","🤯","😡"];
+emojis.forEach(e=>{
+    const span=document.createElement("span");span.textContent=e;
+    span.addEventListener("click",()=>{messageInput.value+=e;emojiPicker.style.display="none";messageInput.focus();});
+    emojiPicker.appendChild(span);
+});
+emojiBtn.addEventListener("click",()=>{emojiPicker.style.display=emojiPicker.style.display==="flex"?"none":"flex";});
+
+// Typing indicator
+let typing=false; let timeout;
+messageInput.addEventListener("input",()=>{
+    if(!typing){typing=true;socket.emit("typing",true);clearTimeout(timeout);timeout=setTimeout(()=>{typing=false;socket.emit("typing",false);},1000);}
+    else{clearTimeout(timeout);timeout=setTimeout(()=>{typing=false;socket.emit("typing",false);},1000);}
+});
+
+// Send message
+function sendMessage(){
+    const msg=messageInput.value.trim(); if(!msg) return;
+    addMessage({user:username,text:msg,color:"#00c6ff",time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})},"sent");
+    socket.emit("user-messages",{user:username,text:msg});
+    messageInput.value="";
+}
+sendBtn.addEventListener("click",sendMessage);
+messageInput.addEventListener("keypress",(e)=>{if(e.key==="Enter") sendMessage();});
+
+// Scroll-to-bottom
+messagesDiv.addEventListener("scroll",()=>{if(messagesDiv.scrollTop+messagesDiv.clientHeight<messagesDiv.scrollHeight){scrollBtn.style.display="block";}else scrollBtn.style.display="none";});
+scrollBtn.addEventListener("click",()=>{messagesDiv.scrollTop=messagesDiv.scrollHeight;scrollBtn.style.display="none";});
+
+// Add message
+function addMessage(data,type="received"){
+    const bubble=document.createElement("div");bubble.classList.add("bubble",type);
+    if(typeof data==="object" && data.user && data.text){
+        const avatar=document.createElement("span");avatar.textContent=data.user[0].toUpperCase();
+        avatar.style.backgroundColor=data.color;avatar.style.color="#fff";avatar.style.width="28px";avatar.style.height="28px";avatar.style.borderRadius="50%";
+        avatar.style.display="inline-flex";avatar.style.alignItems="center";avatar.style.justifyContent="center";
+        avatar.style.fontWeight="700";avatar.style.marginRight="8px";
+
+        const msgContent=document.createElement("span");
+        msgContent.innerHTML=`<span class="username">${data.user}:</span> ${data.text} <span style="font-size:10px;color:#eee;margin-left:5px;">${data.time}</span>`;
+
+        const reactions=document.createElement("span"); reactions.classList.add("reactions");
+        msgContent.appendChild(reactions);
+        msgContent.addEventListener("click",()=>{const r=prompt("React with emoji:");if(r) reactions.textContent=r;});
+
+        bubble.appendChild(avatar); bubble.appendChild(msgContent);
+    }else{bubble.classList.add("notification");bubble.textContent=data;}
+    messagesDiv.appendChild(bubble);messagesDiv.scrollTop=messagesDiv.scrollHeight;
+}
+
+// Socket events
+socket.on("message",(data)=>{addMessage(data);});
+socket.on("online-users",(users)=>{
+    usersDiv.innerHTML="Online:<br>";
+    for(const id in users){
+        const user=users[id];
+        const userDiv=document.createElement("div");userDiv.textContent=user.name;userDiv.dataset.id=id;
+        const dot=document.createElement("span");dot.style.cssText="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:green;margin-right:5px;";
+        userDiv.prepend(dot);userDiv.style.cursor="pointer";
+        userDiv.addEventListener("click",()=>{const msg=prompt("Private message to "+user.name);if(msg)socket.emit("private-message",{toId:id,text:msg});});
+        usersDiv.appendChild(userDiv);
+    }
+});
+socket.on("typing",(data)=>{typingDiv.textContent=data.typing?`${data.name} is typing...`:"";});
+</script>
+</body>
+</html>
